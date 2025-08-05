@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>颜色排序猜测游戏</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#8b5cf6',
+                        accent: '#ec4899',
+                        neutral: '#1f2937',
+                        'neutral-light': '#f3f4f6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .color-item {
+                @apply w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-2xl md:text-3xl cursor-grab active:cursor-grabbing transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105;
+            }
+            .color-container {
+                @apply flex gap-2 md:gap-3 flex-wrap justify-center p-4 bg-white/50 backdrop-blur-sm rounded-xl shadow-lg;
+            }
+            .btn-primary {
+                @apply bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-full transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/50;
+            }
+            .game-card {
+                @apply bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-xl p-6 md:p-8 transition-all duration-500 hover:shadow-2xl;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 font-sans text-neutral flex flex-col items-center justify-start pt-8 pb-16 px-4">
+    <!-- 游戏容器 -->
+    <div class="max-w-3xl w-full">
+        <!-- 游戏标题 -->
+        <div class="text-center mb-8">
+            <h1 class="text-[clamp(2rem,5vw,3rem)] font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary mb-2">颜色排序大师</h1>
+            <p class="text-gray-600 text-lg">通过拖拽排序，猜出目标颜色序列</p>
+        </div>
+        
+        <!-- 游戏卡片 -->
+        <div class="game-card mb-8">
+            <!-- 游戏信息区 -->
+            <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-white px-4 py-2 rounded-full shadow flex items-center gap-2">
+                        <i class="fa fa-refresh text-primary"></i>
+                        <span id="attempts" class="font-bold">猜测次数: 0</span>
+                    </div>
+                    <div class="bg-white px-4 py-2 rounded-full shadow flex items-center gap-2">
+                        <i class="fa fa-check-circle text-accent"></i>
+                        <span id="correct-count" class="font-bold">正确数量: 0</span>
+                    </div>
+                </div>
+                <button id="restart-btn" class="flex items-center gap-2 bg-neutral hover:bg-neutral/90 text-white px-4 py-2 rounded-full transition-all duration-300">
+                    <i class="fa fa-gamepad"></i>
+                    <span>重新开始</span>
+                </button>
+            </div>
+            
+            <!-- 目标序列区域 (初始隐藏) -->
+            <div id="target-container" class="hidden mb-8">
+                <h2 class="text-xl font-semibold mb-3 text-center text-gray-700">目标序列</h2>
+                <div id="target-sequence" class="color-container"></div>
+            </div>
+            
+            <!-- 玩家排序区域 -->
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold mb-3 text-center text-gray-700">请排序你的猜测</h2>
+                <div id="guess-container" class="color-container min-h-[100px]" ondragover="event.preventDefault()" ondrop="drop(event)">
+                    <!-- 颜色项将通过JS动态生成 -->
+                </div>
+            </div>
+            
+            <!-- 提交按钮 -->
+            <div class="text-center">
+                <button id="submit-btn" class="btn-primary">
+                    <i class="fa fa-paper-plane mr-2"></i>提交猜测
+                </button>
+            </div>
+        </div>
+        
+        <!-- 游戏说明 -->
+        <div class="bg-white rounded-xl shadow-md p-5 mb-8">
+            <h3 class="text-lg font-semibold mb-2 text-gray-800 flex items-center">
+                <i class="fa fa-info-circle text-primary mr-2"></i>游戏说明
+            </h3>
+            <ul class="list-disc pl-5 text-gray-600 space-y-1">
+                <li>拖动颜色表情进行排序，组成你的猜测序列</li>
+                <li>每次提交后，会显示你猜对位置的颜色数量</li>
+                <li>目标是找出正确的颜色排列顺序</li>
+                <li>尝试用最少的次数完成挑战！</li>
+            </ul>
+        </div>
+        
+        <!-- 历史记录 -->
+        <div class="bg-white rounded-xl shadow-md p-5">
+            <h3 class="text-lg font-semibold mb-3 text-gray-800 flex items-center">
+                <i class="fa fa-history text-primary mr-2"></i>猜测历史
+            </h3>
+            <div id="history-container" class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                <p class="text-gray-500 text-center italic">暂无历史记录</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 胜利弹窗 -->
+    <div id="win-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 transform transition-all duration-500 scale-95 opacity-0" id="modal-content">
+            <div class="text-center">
+                <div class="text-5xl mb-4">🎉</div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">恭喜你赢了！</h2>
+                <p class="text-gray-600 mb-6">你用了 <span id="final-attempts" class="font-bold text-primary">0</span> 次猜出了正确序列</p>
+                <button id="modal-restart" class="btn-primary w-full">
+                    <i class="fa fa-refresh mr-2"></i>再玩一次
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 颜色库
+        const colors = ["❤️", "🧡", "💛", "💚", "💙", "🖤", "💜"];
+        const sequenceLength = 7;
+        let targetSequence = [];
+        let guessCount = 0;
+        let currentGuess = [...colors]; // 初始猜测序列与颜色库相同
+        
+        // DOM元素
+        const guessContainer = document.getElementById('guess-container');
+        const targetContainer = document.getElementById('target-container');
+        const targetSequenceEl = document.getElementById('target-sequence');
+        const submitBtn = document.getElementById('submit-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const attemptsEl = document.getElementById('attempts');
+        const correctCountEl = document.getElementById('correct-count');
+        const historyContainer = document.getElementById('history-container');
+        const winModal = document.getElementById('win-modal');
+        const modalContent = document.getElementById('modal-content');
+        const finalAttemptsEl = document.getElementById('final-attempts');
+        const modalRestartBtn = document.getElementById('modal-restart');
+        
+        // 初始化游戏
+        function initGame() {
+            // 随机生成目标序列
+            targetSequence = [...colors].sort(() => Math.random() - 0.5);
+            
+            // 重置猜测次数
+            guessCount = 0;
+            attemptsEl.textContent = `猜测次数: ${guessCount}`;
+            correctCountEl.textContent = `正确数量: 0`;
+            
+            // 重置当前猜测
+            currentGuess = [...colors];
+            
+            // 清空历史记录
+            historyContainer.innerHTML = '<p class="text-gray-500 text-center italic">暂无历史记录</p>';
+            
+            // 隐藏目标序列和弹窗
+            targetContainer.classList.add('hidden');
+            winModal.classList.add('hidden');
+            
+            // 渲染猜测序列
+            renderGuessSequence();
+        }
+        
+        // 渲染猜测序列
+        function renderGuessSequence() {
+            guessContainer.innerHTML = '';
+            
+            currentGuess.forEach((color, index) => {
+                const colorEl = document.createElement('div');
+                colorEl.className = 'color-item';
+                colorEl.textContent = color;
+                colorEl.draggable = true;
+                colorEl.dataset.index = index;
+                
+                // 添加拖拽事件
+                colorEl.ondragstart = dragStart;
+                
+                guessContainer.appendChild(colorEl);
+            });
+        }
+        
+        // 拖拽开始
+        function dragStart(event) {
+            event.dataTransfer.setData('text/plain', event.target.dataset.index);
+            // 添加拖拽视觉效果
+            setTimeout(() => {
+                event.target.classList.add('opacity-50', 'scale-90');
+            }, 0);
+        }
+        
+        // 拖拽结束
+        document.addEventListener('dragend', (event) => {
+            event.target.classList.remove('opacity-50', 'scale-90');
+        });
+        
+        // 放置处理
+        function drop(event) {
+            event.preventDefault();
+            const draggedIndex = parseInt(event.dataTransfer.getData('text/plain'));
+            const dropTarget = event.target.closest('.color-item');
+            
+            if (dropTarget && dropTarget.dataset.index !== undefined) {
+                const dropIndex = parseInt(dropTarget.dataset.index);
+                
+                // 交换位置
+                if (draggedIndex !== dropIndex) {
+                    const temp = currentGuess[draggedIndex];
+                    currentGuess[draggedIndex] = currentGuess[dropIndex];
+                    currentGuess[dropIndex] = temp;
+                    
+                    // 重新渲染序列并添加动画效果
+                    renderGuessSequence();
+                    addSwapAnimation(dropIndex);
+                }
+            }
+        }
+        
+        // 添加交换动画
+        function addSwapAnimation(index) {
+            const items = guessContainer.querySelectorAll('.color-item');
+            if (items[index]) {
+                items[index].classList.add('ring-4', 'ring-accent');
+                setTimeout(() => {
+                    items[index].classList.remove('ring-4', 'ring-accent');
+                }, 500);
+            }
+        }
+        
+        // 提交猜测
+        function submitGuess() {
+            guessCount++;
+            attemptsEl.textContent = `猜测次数: ${guessCount}`;
+            
+            // 计算正确数量
+            let correctCount = 0;
+            currentGuess.forEach((color, index) => {
+                if (color === targetSequence[index]) {
+                    correctCount++;
+                }
+            });
+            
+            correctCountEl.textContent = `正确数量: ${correctCount}`;
+            
+            // 添加到历史记录
+            addToHistory(currentGuess, correctCount);
+            
+            // 检查是否猜对
+            if (correctCount === sequenceLength) {
+                // 显示目标序列
+                renderTargetSequence();
+                targetContainer.classList.remove('hidden');
+                
+                // 显示胜利弹窗
+                showWinModal();
+            } else {
+                // 添加提交反馈动画
+                submitBtn.classList.add('bg-green-500');
+                setTimeout(() => {
+                    submitBtn.classList.remove('bg-green-500');
+                }, 300);
+            }
+        }
+        
+        // 渲染目标序列
+        function renderTargetSequence() {
+            targetSequenceEl.innerHTML = '';
+            
+            targetSequence.forEach(color => {
+                const colorEl = document.createElement('div');
+                colorEl.className = 'color-item';
+                colorEl.textContent = color;
+                targetSequenceEl.appendChild(colorEl);
+            });
+        }
+        
+        // 添加到历史记录
+        function addToHistory(guess, correctCount) {
+            // 如果是第一条记录，先清空提示文本
+            if (historyContainer.querySelector('p.italic')) {
+                historyContainer.innerHTML = '';
+            }
+            
+            const historyItem = document.createElement('div');
+            historyItem.className = 'bg-gray-50 p-3 rounded-lg flex items-center justify-between';
+            
+            // 历史猜测序列
+            const guessEl = document.createElement('div');
+            guessEl.className = 'flex gap-1';
+            
+            guess.forEach(color => {
+                const colorEl = document.createElement('span');
+                colorEl.className = 'text-xl';
+                colorEl.textContent = color;
+                guessEl.appendChild(colorEl);
+            });
+            
+            // 正确数量
+            const correctEl = document.createElement('div');
+            correctEl.className = 'bg-primary/10 text-primary font-bold px-3 py-1 rounded-full';
+            correctEl.textContent = `正确: ${correctCount}`;
+            
+            historyItem.appendChild(guessEl);
+            historyItem.appendChild(correctEl);
+            
+            // 添加到历史容器顶部
+            historyContainer.prepend(historyItem);
+            
+            // 添加进入动画
+            setTimeout(() => {
+                historyItem.classList.add('opacity-100', 'translate-y-0');
+            }, 10);
+        }
+        
+        // 显示胜利弹窗
+        function showWinModal() {
+            finalAttemptsEl.textContent = guessCount;
+            winModal.classList.remove('hidden');
+            
+            // 触发动画
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+        
+        // 隐藏胜利弹窗
+        function hideWinModal() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                winModal.classList.add('hidden');
+            }, 300);
+        }
+        
+        // 事件监听
+        submitBtn.addEventListener('click', submitGuess);
+        restartBtn.addEventListener('click', initGame);
+        modalRestartBtn.addEventListener('click', () => {
+            hideWinModal();
+            initGame();
+        });
+        
+        // 初始化游戏
+        window.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
